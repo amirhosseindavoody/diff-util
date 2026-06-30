@@ -3,6 +3,20 @@
 A side-by-side **file diff TUI** written in Rust — two panels, one diff, mouse
 and keyboard driven.
 
+## Install
+
+Install globally with pixi (adds `diff-utils` to your PATH):
+
+```bash
+pixi global install --git https://github.com/amirhosseindavoody/diff-utils.git --branch main diff-utils
+```
+
+Then run:
+
+```bash
+diff-utils file_a.txt file_b.txt
+```
+
 ## Features
 
 | Surface | What it does |
