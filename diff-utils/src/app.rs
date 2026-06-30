@@ -1,3 +1,4 @@
+use crate::highlight::HighlightEngine;
 use crate::ui;
 use anyhow::{Context, Result};
 use crossterm::event::{
@@ -7,6 +8,7 @@ use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::execute;
 use diff_utils_core::{diff_lines, FileBrowser, SideBySide};
 use ratatui::backend::CrosstermBackend;
+use ratatui::text::Span;
 use ratatui::Terminal;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
@@ -16,7 +18,6 @@ pub const LEFT: usize = 0;
 pub const RIGHT: usize = 1;
 
 /// One half of the diff view.
-#[derive(Debug)]
 pub struct Panel {
     pub path: Option<PathBuf>,
     /// Loaded text content of the current file, or an error message if it
@@ -24,6 +25,12 @@ pub struct Panel {
     pub content: Option<Result<String, String>>,
     /// Active when the panel has no file (or the user pressed `q` to close it).
     pub browser: Option<FileBrowser>,
+    /// Per-line syntax-highlighted spans for the current file, indexed in
+    /// source order (line 1 → index 0). `None` when the file has no known
+    /// syntax or no file is loaded.
+    pub highlighted: Option<Vec<Vec<Span<'static>>>>,
+    /// Name of the detected syntax (e.g. "Python", "Log"), shown in the title.
+    pub syntax_name: Option<String>,
 }
 
 impl Panel {
@@ -32,6 +39,8 @@ impl Panel {
             path: None,
             content: None,
             browser: None,
+            highlighted: None,
+            syntax_name: None,
         }
     }
 
@@ -39,12 +48,15 @@ impl Panel {
         self.browser = FileBrowser::open(root).ok();
     }
 
-    /// Load `path` as this panel's file and leave browser mode.
+    /// Load `path` as this panel's file and leave browser mode. The caller is
+    /// responsible for refreshing syntax highlighting via `App::populate_highlight`.
     pub fn load(&mut self, path: PathBuf) {
         let result = std::fs::read_to_string(&path).map_err(|e| e.to_string());
         self.content = Some(result);
         self.path = Some(path);
         self.browser = None;
+        self.highlighted = None;
+        self.syntax_name = None;
     }
 
     /// Drop the current file and re-enter browser mode rooted at the file's
@@ -54,6 +66,8 @@ impl Panel {
         let parent_ref = parent.as_deref();
         self.path = None;
         self.content = None;
+        self.highlighted = None;
+        self.syntax_name = None;
         self.open_browser(parent_ref);
     }
 
@@ -85,6 +99,7 @@ pub struct App {
     pub show_help: bool,
     pub should_quit: bool,
     pub message: Option<String>,
+    pub highlight: HighlightEngine,
 }
 
 impl App {
@@ -110,9 +125,42 @@ impl App {
             show_help: false,
             should_quit: false,
             message: None,
+            highlight: HighlightEngine::new(),
         };
+        app.populate_highlight(LEFT);
+        app.populate_highlight(RIGHT);
         app.recompute_diff();
         Ok(app)
+    }
+
+    /// (Re)compute cached syntax-highlighted spans for panel `idx` based on its
+    /// current file. Falls back to `None` (plain rendering) when the file has
+    /// no recognized syntax.
+    pub fn populate_highlight(&mut self, idx: usize) {
+        let syntax = {
+            let panel = &self.panels[idx];
+            let Some(path) = panel.path.as_deref() else {
+                self.panels[idx].highlighted = None;
+                self.panels[idx].syntax_name = None;
+                return;
+            };
+            let Some(text) = panel.text() else {
+                self.panels[idx].highlighted = None;
+                self.panels[idx].syntax_name = None;
+                return;
+            };
+            match self.highlight.syntax_for_path(path) {
+                Some(syntax) => {
+                    let name = syntax.name.clone();
+                    let highlighted = self.highlight.highlight_text(&syntax, text);
+                    (Some(name), Some(highlighted))
+                }
+                None => (None, None),
+            }
+        };
+        let (name, highlighted) = syntax;
+        self.panels[idx].syntax_name = name;
+        self.panels[idx].highlighted = highlighted;
     }
 
     /// Recompute the side-by-side diff whenever either file changes.
@@ -312,6 +360,7 @@ fn handle_browser_key(app: &mut App, code: KeyCode) {
                     if let Some(path) = browser.selected_path() {
                         let path = path.to_path_buf();
                         app.panels[focused].load(path);
+                        app.populate_highlight(focused);
                         app.recompute_diff();
                         app.scroll = 0;
                     }

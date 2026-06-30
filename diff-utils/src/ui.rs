@@ -85,7 +85,14 @@ fn panel_title(panel: &Panel, idx: usize, focused: bool) -> String {
     let marker = if focused { "◀" } else { " " };
     let side = side_name(idx);
     match &panel.path {
-        Some(p) => format!(" {} {} — {} ", marker, side, p.display()),
+        Some(p) => {
+            let syntax = panel
+                .syntax_name
+                .as_deref()
+                .map(|s| format!(" [{}]", s))
+                .unwrap_or_default();
+            format!(" {} {} — {}{} ", marker, side, p.display(), syntax)
+        }
         None => format!(" {} {} — file browser ", marker, side),
     }
 }
@@ -107,9 +114,9 @@ fn draw_file_content(f: &mut Frame, app: &mut App, idx: usize, area: Rect) {
     let both = app.panels[LEFT].text().is_some() && app.panels[RIGHT].text().is_some();
     if both {
         let side = if idx == LEFT { &app.diff.left } else { &app.diff.right };
-        render_diff_side(f, &app.diff, side, app.scroll, area);
+        render_diff_side(f, &app.diff, side, panel.highlighted.as_ref(), app.scroll, area);
     } else if let Some(text) = panel.text() {
-        render_plain(f, text, app.scroll, area);
+        render_plain(f, text, panel.highlighted.as_ref(), app.scroll, area);
     } else {
         // No file and no browser (shouldn't normally happen): show hint.
         let hint = Paragraph::new("press q is a no-op here — open a file from the other panel's browser")
@@ -122,6 +129,7 @@ fn render_diff_side(
     f: &mut Frame,
     diff: &SideBySide,
     side: &diff_utils_core::DiffSide,
+    highlighted: Option<&Vec<Vec<Span<'static>>>>,
     scroll: usize,
     area: Rect,
 ) {
@@ -134,8 +142,28 @@ fn render_diff_side(
             .map(|n| format!("{:>width$}", n, width = line_no_width as usize))
             .unwrap_or_else(|| " ".repeat(line_no_width as usize));
         let no_span = Span::styled(no, Style::default().fg(Color::DarkGray));
-        let text_span = Span::styled(row.text.clone(), row_style(row.kind));
-        let line = Line::from(vec![no_span, Span::raw(" "), text_span]);
+
+        // Use cached syntax spans when the row maps to a real source line;
+        // otherwise fall back to a single plain span.
+        let mut spans: Vec<Span<'_>> = vec![no_span, Span::raw(" ")];
+        let used_highlight = match (row.line_no, highlighted) {
+            (Some(n), Some(hl)) if n >= 1 && n <= hl.len() => {
+                spans.extend(hl[n - 1].iter().cloned());
+                true
+            }
+            _ => {
+                spans.push(Span::styled(row.text.clone(), row_style(row.kind)));
+                false
+            }
+        };
+
+        let line = if used_highlight {
+            // Syntax provides foreground colors; the diff kind tints the
+            // background so added/removed/changed rows still stand out.
+            Line::from(spans).style(diff_bg(row.kind))
+        } else {
+            Line::from(spans).style(diff_bg(row.kind))
+        };
         lines.push(line);
     }
 
@@ -143,14 +171,24 @@ fn render_diff_side(
     f.render_widget(para, area);
 }
 
-fn render_plain(f: &mut Frame, text: &str, scroll: usize, area: Rect) {
+fn render_plain(
+    f: &mut Frame,
+    text: &str,
+    highlighted: Option<&Vec<Vec<Span<'static>>>>,
+    scroll: usize,
+    area: Rect,
+) {
     let line_no_width = count_digits(text.lines().count()) as u16;
     let mut lines: Vec<Line> = Vec::new();
     for (i, raw) in text.lines().enumerate().skip(scroll) {
         let no = format!("{:>width$}", i + 1, width = line_no_width as usize);
         let no_span = Span::styled(no, Style::default().fg(Color::DarkGray));
-        let line = Line::from(vec![no_span, Span::raw(" "), Span::raw(raw.to_string())]);
-        lines.push(line);
+        let mut spans: Vec<Span<'_>> = vec![no_span, Span::raw(" ")];
+        match highlighted {
+            Some(hl) if i < hl.len() => spans.extend(hl[i].iter().cloned()),
+            _ => spans.push(Span::raw(raw.to_string())),
+        }
+        lines.push(Line::from(spans));
     }
     let para = Paragraph::new(lines).wrap(Wrap { trim: false });
     f.render_widget(para, area);
@@ -214,6 +252,18 @@ fn row_style(kind: RowKind) -> Style {
         RowKind::Removed => Style::default().fg(Color::Red),
         RowKind::Changed => Style::default().fg(Color::Yellow),
         RowKind::Blank => Style::default().fg(Color::DarkGray),
+    }
+}
+
+/// Subtle background tint for a diff row. Used as the line's base style so the
+/// syntax-highlighted foreground colors remain readable while the diff kind is
+/// still communicated via background.
+fn diff_bg(kind: RowKind) -> Style {
+    match kind {
+        RowKind::Added => Style::default().bg(Color::Rgb(0, 40, 0)),
+        RowKind::Removed => Style::default().bg(Color::Rgb(40, 0, 0)),
+        RowKind::Changed => Style::default().bg(Color::Rgb(40, 30, 0)),
+        _ => Style::default(),
     }
 }
 

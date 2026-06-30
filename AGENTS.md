@@ -9,7 +9,9 @@ product with two crates:
   `similar` crate, plus a file browser model used by the TUI).
 - `diff-utils` — the `diff-utils` binary: a ratatui TUI that shows two panels,
   a side-by-side diff between two files, mouse-click panel selection, and a
-  per-panel file browser (press `q` to close a panel's file).
+  per-panel file browser (press `q` to close a panel's file). Each panel
+  renders syntax-highlighted text via `syntect` (base16-ocean theme) with a
+  custom `.log` grammar for log files.
 
 ### Toolchain (important)
 
