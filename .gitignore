@@ -7,3 +7,6 @@ target/
 
 # Packaging artifacts
 dist/
+
+# Demo recordings (regenerate with `vhs demo/diff-demo.tape`)
+demo/*.mp4

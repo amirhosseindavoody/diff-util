@@ -218,6 +218,9 @@ impl App {
 }
 
 pub fn run(left: Option<&str>, right: Option<&str>) -> Result<()> {
+    // Full-screen TUI: always emit ANSI colors even when NO_COLOR is set in the
+    // parent environment (common in CI and cloud shells).
+    crossterm::style::force_color_output(true);
     terminal::enable_raw_mode().context("enable raw mode")?;
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture).context("enter alt screen")?;
