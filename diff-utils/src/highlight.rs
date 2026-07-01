@@ -9,7 +9,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
 use std::path::Path;
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{FontStyle, Theme, ThemeSet};
+use syntect::highlighting::{FontStyle, Style as SynStyle, Theme, ThemeSet};
 use syntect::parsing::{SyntaxDefinition, SyntaxReference, SyntaxSet};
 
 /// A minimal Sublime-style syntax for generic log files: timestamps and the
@@ -82,13 +82,21 @@ impl HighlightEngine {
     pub fn highlight_text(&self, syntax: &SyntaxReference, text: &str) -> Vec<Vec<Span<'static>>> {
         let mut highlighter = HighlightLines::new(syntax, &self.theme);
         let mut out = Vec::with_capacity(text.lines().count());
-        for line in text.lines() {
+        for (i, line) in text.lines().enumerate() {
+            if i == 0 && line.starts_with("#!") {
+                // syntect's Python grammar mishandles shebangs and poisons parser
+                // state for the rest of the file. Render it as a comment without
+                // advancing the highlighter.
+                out.push(vec![Span::styled(
+                    line.to_string(),
+                    Style::default().fg(Color::Indexed(SHEBANG_COLOR)),
+                )]);
+                continue;
+            }
+
             let regions = highlighter.highlight_line(line, &self.syntax_set);
             let spans = match regions {
-                Ok(regions) => regions
-                    .into_iter()
-                    .map(|(style, text)| Span::styled(text.to_string(), to_tui_style(style)))
-                    .collect(),
+                Ok(regions) => regions_to_spans(&regions, line),
                 Err(_) => vec![Span::raw(line.to_string())],
             };
             out.push(spans);
@@ -97,10 +105,32 @@ impl HighlightEngine {
     }
 }
 
+/// Muted gray from the base16-ocean palette, used for shebang lines.
+const SHEBANG_COLOR: u8 = 66;
+
+/// Build display spans from syntect regions, always using text from `display_line`.
+fn regions_to_spans(regions: &[(SynStyle, &str)], display_line: &str) -> Vec<Span<'static>> {
+    let mut spans = Vec::with_capacity(regions.len());
+    let mut col = 0usize;
+    for (style, region_text) in regions {
+        let len = region_text.len();
+        let end = col.saturating_add(len).min(display_line.len());
+        let slice = &display_line[col..end];
+        col = end;
+        if !slice.is_empty() {
+            spans.push(Span::styled(slice.to_string(), to_tui_style(*style)));
+        }
+    }
+    if col < display_line.len() {
+        spans.push(Span::raw(display_line[col..].to_string()));
+    }
+    spans
+}
+
 /// Convert a syntect `Style` to a ratatui `Style`. Only foreground color and
 /// font modifiers are carried over; background is left unset so the diff row's
 /// background highlight (applied in `ui.rs`) shows through.
-fn to_tui_style(style: syntect::highlighting::Style) -> Style {
+fn to_tui_style(style: SynStyle) -> Style {
     let mut modifier = Modifier::empty();
     if style.font_style.contains(FontStyle::BOLD) {
         modifier |= Modifier::BOLD;
@@ -117,5 +147,61 @@ fn to_tui_style(style: syntect::highlighting::Style) -> Style {
 }
 
 fn color_to_tui(c: syntect::highlighting::Color) -> Color {
-    Color::Rgb(c.r, c.g, c.b)
+    // Use the 256-color palette for syntax foregrounds. Truecolor (`38;2`) is
+    // often dropped by terminals and screen recorders (including VHS) while
+    // indexed colors (`38;5`) render reliably alongside diff backgrounds.
+    Color::Indexed(rgb_to_256(c.r, c.g, c.b))
+}
+
+/// Map an sRGB triplet to the xterm 256-color palette (16 + 6×6×6 cube + gray).
+fn rgb_to_256(r: u8, g: u8, b: u8) -> u8 {
+    if r == g && g == b {
+        if r < 8 {
+            return 0;
+        }
+        if r > 248 {
+            return 15;
+        }
+        return ((r as u16 - 8) / 10 + 232) as u8;
+    }
+    16 + 36 * (r as u16 / 51) as u8 + 6 * (g as u16 / 51) as u8 + (b as u16 / 51) as u8
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+    use std::path::Path;
+
+    #[test]
+    fn python_syntax_produces_distinct_colors() {
+        let engine = HighlightEngine::new();
+        let syntax = engine.syntax_for_path(Path::new("test.py")).unwrap();
+        let text = "def add(a: float, b: float) -> float:\nfrom typing import List\nx = \"hello\"\n";
+        let lines = engine.highlight_text(&syntax, text);
+        let mut colors = HashSet::new();
+        for spans in &lines {
+            for s in spans {
+                if let Some(Color::Indexed(idx)) = s.style.fg {
+                    colors.insert(idx);
+                }
+            }
+        }
+        assert!(colors.len() > 1, "expected multiple syntax colors, got: {colors:?}");
+    }
+
+    #[test]
+    fn shebang_does_not_break_python_highlighting() {
+        let engine = HighlightEngine::new();
+        let syntax = engine.syntax_for_path(Path::new("calculator.py")).unwrap();
+        let text = std::fs::read_to_string("/workspace/demo/calculator_old.py").unwrap();
+        let lines = engine.highlight_text(&syntax, &text);
+        let def_line = &lines[6]; // line 7: def add(...)
+        let colors: HashSet<_> = def_line.iter().filter_map(|s| s.style.fg).collect();
+        assert!(
+            def_line.len() > 1 && colors.len() > 1,
+            "expected tokenized def line, got {} spans / {colors:?}",
+            def_line.len()
+        );
+    }
 }
