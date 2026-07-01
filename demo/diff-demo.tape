@@ -8,6 +8,10 @@ Set Padding 40
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 0ms
 
+Env NO_COLOR ""
+Env COLORTERM "truecolor"
+Env TERM "xterm-256color"
+
 Hide
 Type "cd /workspace/demo"
 Enter
