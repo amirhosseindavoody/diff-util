@@ -6,7 +6,7 @@ license.workspace = true
 description = "Side-by-side file diff TUI"
 
 [[bin]]
-name = "diff-utils"
+name = "diff-tool"
 path = "src/main.rs"
 
 [dependencies]

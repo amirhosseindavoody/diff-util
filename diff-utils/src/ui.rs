@@ -396,7 +396,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, theme: UiTheme) {
 
 fn draw_help(f: &mut Frame, area: Rect, theme: UiTheme) {
     let help = vec![
-        "diff-utils — side-by-side file diff",
+        "diff-tool — side-by-side file diff",
         "",
         "Mouse",
         "  click           focus a panel (or pick an entry in a browser)",

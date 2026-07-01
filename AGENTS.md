@@ -2,12 +2,12 @@
 
 ## Cursor Cloud specific instructions
 
-This is a Rust workspace (`diff-utils`) managed with **Pixi**. It produces one
+This is a Rust workspace (`diff-tool`) managed with **Pixi**. It produces one
 product with two crates:
 
 - `diff-utils-core` — shared library (side-by-side diff computation via the
   `similar` crate, plus a file browser model used by the TUI).
-- `diff-utils` — the `diff-utils` binary: a ratatui TUI that shows two panels,
+- `diff-utils` — the `diff-tool` binary crate: a ratatui TUI that shows two panels,
   a side-by-side diff between two files, mouse-click panel selection, and a
   per-panel file browser (press `q` to close a panel's file). Each panel
   renders syntax-highlighted text via `syntect` (dark: base16-ocean; light:
@@ -35,9 +35,9 @@ Predefined tasks live in `pixi.toml`:
 
 ### Packaging
 
-- Conda package: `pixi run conda-package` → `dist/diff-utils-*.conda`
+- Conda package: `pixi run conda-package` → `dist/diff-tool-*.conda`
 - The rattler-build recipe lives in `recipe/recipe.yaml`.
-- The binary is installed to `$PREFIX/bin/diff-utils`.
+- The binary is installed to `$PREFIX/bin/diff-tool`.
 
 ### Gotchas
 

@@ -57,8 +57,8 @@ pixi run -- cargo test -p diff-utils-core
 ## Packaging
 
 - **Conda / Pixi package**: `recipe/recipe.yaml` uses `pixi-build-rattler-build`.
-  The release binary is installed to `$PREFIX/bin/diff-utils`.
-- **Global install**: `pixi global install --git … diff-utils` (documented in README).
+  The release binary is installed to `$PREFIX/bin/diff-tool`.
+- **Global install**: `pixi global install --git … diff-tool` (documented in README).
 - **Platforms**: Pixi workspace currently targets `linux-64`; the Rust code itself
   is portable, but conda packaging is configured for Linux.
 
