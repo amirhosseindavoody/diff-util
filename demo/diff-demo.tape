@@ -17,7 +17,7 @@ Type "cd /workspace/demo"
 Enter
 Show
 
-Type "/workspace/target/release/diff-utils calculator_old.py calculator_new.py"
+Type "/workspace/target/release/diff-utils /workspace/demo/project-a/calculator_old.py /workspace/demo/project-b/calculator_new.py"
 Enter
 Sleep 2.5s
 
@@ -25,15 +25,11 @@ Sleep 2.5s
 Down@200ms 8
 Sleep 1s
 
-# Close left panel file → file browser
+# Close left panel file → file browser (cwd: project-a/)
 Type "q"
 Sleep 2.5s
 
-# Select calculator_old.py in the browser (↓ from calculator_new.py)
-Type "j"
-Sleep 1s
-
-# Open the selected file
+# Open calculator_old.py in the left browser
 Type "l"
 Sleep 2.5s
 
@@ -45,11 +41,15 @@ Sleep 1s
 Tab
 Sleep 1s
 
-# Close right panel file → file browser
+# Close right panel file → file browser (cwd: project-b/)
 Type "q"
 Sleep 2.5s
 
-# Move down to diff-demo.tape
+# Go up to demo/ and select diff-demo.tape
+Type "h"
+Sleep 500ms
+Type "j"
+Sleep 500ms
 Type "j"
 Sleep 500ms
 Type "j"

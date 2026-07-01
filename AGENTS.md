@@ -44,3 +44,12 @@ Predefined tasks live in `pixi.toml`:
 - `q` has panel-local semantics: it closes the focused panel's file and opens
   a browser; if the panel already has no file, `q` quits the app. Use
   `Q` / `Ctrl-C` to force-quit the whole app.
+
+### Demo video
+
+After user-visible TUI changes, regenerate and show the demo:
+
+- Build + record: `pixi run demo-video` (depends on `pixi run build`)
+- Output: `demo/diff-utils-python-demo.mp4` (VHS + ffmpeg overlays)
+- Embed the video in agent responses when UI behavior changes (see
+  `.cursor/rules/generate-demo-video.mdc`).
