@@ -99,7 +99,7 @@ impl HighlightEngine {
 
 /// Convert a syntect `Style` to a ratatui `Style`. Only foreground color and
 /// font modifiers are carried over; background is left unset so the diff row's
-/// own background tint (added/removed/changed) shows through.
+/// background highlight (applied in `ui.rs`) shows through.
 fn to_tui_style(style: syntect::highlighting::Style) -> Style {
     let mut modifier = Modifier::empty();
     if style.font_style.contains(FontStyle::BOLD) {

@@ -146,25 +146,21 @@ fn render_diff_side(
         // Use cached syntax spans when the row maps to a real source line;
         // otherwise fall back to a single plain span.
         let mut spans: Vec<Span<'_>> = vec![no_span, Span::raw(" ")];
-        let used_highlight = match (row.line_no, highlighted) {
+        match (row.line_no, highlighted) {
             (Some(n), Some(hl)) if n >= 1 && n <= hl.len() => {
-                spans.extend(hl[n - 1].iter().cloned());
-                true
+                spans.extend(
+                    hl[n - 1]
+                        .iter()
+                        .cloned()
+                        .map(|s| span_with_diff_bg(s, row.kind)),
+                );
             }
             _ => {
-                spans.push(Span::styled(row.text.clone(), row_style(row.kind)));
-                false
+                spans.push(Span::styled(row.text.clone(), diff_text_style(row.kind)));
             }
-        };
+        }
 
-        let line = if used_highlight {
-            // Syntax provides foreground colors; the diff kind tints the
-            // background so added/removed/changed rows still stand out.
-            Line::from(spans).style(diff_bg(row.kind))
-        } else {
-            Line::from(spans).style(diff_bg(row.kind))
-        };
-        lines.push(line);
+        lines.push(Line::from(spans));
     }
 
     let para = Paragraph::new(lines).wrap(Wrap { trim: false });
@@ -245,26 +241,37 @@ fn browser_item(e: &Entry) -> ListItem<'_> {
     ListItem::new(Line::from(Span::styled(name, style)))
 }
 
-fn row_style(kind: RowKind) -> Style {
+/// Background highlight color for added/removed/changed diff rows.
+fn diff_bg(kind: RowKind) -> Option<Color> {
     match kind {
-        RowKind::Equal => Style::default().fg(Color::Gray),
-        RowKind::Added => Style::default().fg(Color::Green),
-        RowKind::Removed => Style::default().fg(Color::Red),
-        RowKind::Changed => Style::default().fg(Color::Yellow),
-        RowKind::Blank => Style::default().fg(Color::DarkGray),
+        RowKind::Added => Some(Color::Rgb(0, 48, 0)),
+        RowKind::Removed => Some(Color::Rgb(48, 0, 0)),
+        RowKind::Changed => Some(Color::Rgb(48, 36, 0)),
+        _ => None,
     }
 }
 
-/// Subtle background tint for a diff row. Used as the line's base style so the
-/// syntax-highlighted foreground colors remain readable while the diff kind is
-/// still communicated via background.
-fn diff_bg(kind: RowKind) -> Style {
-    match kind {
-        RowKind::Added => Style::default().bg(Color::Rgb(0, 40, 0)),
-        RowKind::Removed => Style::default().bg(Color::Rgb(40, 0, 0)),
-        RowKind::Changed => Style::default().bg(Color::Rgb(40, 30, 0)),
-        _ => Style::default(),
+/// Style for plain (non-syntax) diff text. Added/removed/changed rows use a
+/// background highlight; equal/blank rows keep subtle foreground tints only.
+fn diff_text_style(kind: RowKind) -> Style {
+    match diff_bg(kind) {
+        Some(bg) => Style::default().bg(bg),
+        None => match kind {
+            RowKind::Equal => Style::default().fg(Color::Gray),
+            RowKind::Blank => Style::default().fg(Color::DarkGray),
+            _ => Style::default(),
+        },
     }
+}
+
+fn span_with_diff_bg(span: Span<'static>, kind: RowKind) -> Span<'static> {
+    let Some(bg) = diff_bg(kind) else {
+        return span;
+    };
+    Span::styled(
+        span.content.to_string(),
+        span.style.patch(Style::default().bg(bg)),
+    )
 }
 
 fn draw_status(f: &mut Frame, app: &App, area: Rect) {
