@@ -1,4 +1,4 @@
-Output diff-utils-python-demo.mp4
+Output diff-utils-python-demo.raw.mp4
 
 Set Shell "bash"
 Set FontSize 20
@@ -19,41 +19,45 @@ Show
 
 Type "/workspace/target/release/diff-utils calculator_old.py calculator_new.py"
 Enter
-Sleep 2s
+Sleep 2.5s
 
-# Scroll down through the diff
-Down@150ms 30
+# Scroll through the Python diff
+Down@200ms 8
 Sleep 1s
 
-# Page down to show more changes
-PageDown
-Sleep 500ms
-Type "J"
+# Close left panel file → file browser
+Type "q"
+Sleep 2.5s
+
+# Select calculator_old.py in the browser (↓ from calculator_new.py)
+Type "j"
 Sleep 1s
 
-# Toggle help overlay
-Type "?"
-Sleep 2s
-Type "?"
-Sleep 500ms
+# Open the selected file
+Type "l"
+Sleep 2.5s
 
-# Switch focus between panels
+# Scroll the restored side-by-side diff
+Down@150ms 6
+Sleep 1s
+
+# Switch to the right panel
 Tab
+Sleep 1s
+
+# Close right panel file → file browser
+Type "q"
+Sleep 2.5s
+
+# Move down to diff-demo.tape
+Type "j"
 Sleep 500ms
-Tab
-Sleep 500ms
-
-# Scroll back up
-Up@100ms 20
+Type "j"
 Sleep 1s
 
-# Scroll to top
-Type "g"
-Sleep 1s
+# Open the tape file on the right panel
+Type "l"
+Sleep 2.5s
 
-# Scroll down again slowly
-Down@200ms 15
-Sleep 1s
-
-# Quit
+# Quit the app
 Type "Q"
