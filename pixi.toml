@@ -1,6 +1,6 @@
 [workspace]
 name = "diff-tool"
-version = "2026.7.1+0"
+version = "2026.7.1+1"
 description = "Side-by-side file diff TUI written in Rust"
 channels = ["conda-forge"]
 platforms = ["linux-64"]
@@ -8,7 +8,7 @@ preview = ["pixi-build"]
 
 [package]
 name = "diff-tool"
-version = "2026.7.1+0"
+version = "2026.7.1+1"
 
 [package.build]
 backend = { name = "pixi-build-rattler-build", version = "0.*" }

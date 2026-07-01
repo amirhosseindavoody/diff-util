@@ -46,7 +46,10 @@ pub struct HighlightEngine {
 
 impl HighlightEngine {
     pub fn new(ui_theme: &UiTheme) -> Self {
-        let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
+        // Line-at-a-time highlighting via `HighlightLines` passes lines *without*
+        // trailing `\n`. The "newlines" syntax dump embeds `\n` in its regexes
+        // and leaves contexts (e.g. Python `#` comments) stuck across lines.
+        let mut builder = SyntaxSet::load_defaults_nonewlines().into_builder();
         if let Ok(log_def) = SyntaxDefinition::load_from_str(LOG_SYNTAX, false, Some("log")) {
             builder.add(log_def);
         }
@@ -144,6 +147,8 @@ fn load_syntect_theme(ui_theme: &UiTheme) -> Theme {
 mod tests {
     use super::*;
     use crate::theme::{ColorScheme, UiTheme};
+    use ratatui::style::Color;
+    use std::path::Path;
 
     #[test]
     fn syntect_themes_load_for_dark_and_light() {
@@ -151,5 +156,27 @@ mod tests {
             let ui_theme = UiTheme::new(scheme);
             let _engine = HighlightEngine::new(&ui_theme);
         }
+    }
+
+    #[test]
+    fn python_after_comment_line_is_not_all_comment_colored() {
+        let ui_theme = UiTheme::new(ColorScheme::Dark);
+        let engine = HighlightEngine::new(&ui_theme);
+        let syntax = engine
+            .syntax_for_path(Path::new("test.py"))
+            .expect("python syntax");
+        let text = "# comment\ndef foo():\n    pass\n";
+        let lines = engine.highlight_text(&syntax, text);
+        assert_eq!(lines.len(), 3);
+
+        // base16-ocean.dark comment foreground
+        let comment_color = Color::Rgb(101, 115, 126);
+        let def_line = &lines[1];
+        assert!(
+            def_line
+                .iter()
+                .any(|span| span.style.fg != Some(comment_color)),
+            "code after a # comment line should not be entirely comment-colored"
+        );
     }
 }
