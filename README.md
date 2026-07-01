@@ -14,7 +14,7 @@ removed / changed row backgrounds:
   </video>
 </p>
 
-<sub>Recorded with <a href="https://github.com/charmbracelet/vhs">VHS</a> — regenerate via <code>vhs demo/diff-demo.tape</code>.</sub>
+<sub>Recorded with <a href="https://github.com/charmbracelet/vhs">VHS</a> — regenerate via <code>demo/render-demo.sh</code> (requires VHS, ffmpeg, and ttyd).</sub>
 
 ## Install
 
