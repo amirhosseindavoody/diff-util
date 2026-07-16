@@ -57,7 +57,8 @@ pixi run build
 pixi run diff -- file_a.txt file_b.txt
 ```
 
-Launch with zero, one, or two paths (files or directories):
+Launch with zero, one, or two paths (files or directories). Missing paths open a
+file picker at the nearest existing parent directory:
 
 ```bash
 pixi run diff --                       # both panels start as browsers (cwd)

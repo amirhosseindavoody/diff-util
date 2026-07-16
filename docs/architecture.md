@@ -192,3 +192,5 @@ diff-tool [--theme dark|light] [LEFT] [RIGHT]
 - 1 file arg: that file opens on both panels (diff is all equal until one side changes).
 - 1 directory arg: both panels open a file picker rooted at that directory.
 - 2 args: each path is opened independently (file → load, directory → picker).
+- Missing file or directory paths: open a picker at the nearest existing parent
+  directory (or cwd if none is found).

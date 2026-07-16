@@ -13,6 +13,7 @@ use theme::ColorScheme;
 /// Pass zero, one, or two paths (files or directories). A single file opens on
 /// both panels; a single directory opens a file picker rooted there on both
 /// panels. With two paths, each panel opens its own file or directory picker.
+/// Missing paths open a picker at the nearest existing parent directory.
 #[derive(Parser)]
 #[command(name = "diff-tool", version, about = "Side-by-side file diff TUI")]
 struct Cli {

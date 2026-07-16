@@ -8,7 +8,8 @@ use crossterm::event::{
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::execute;
 use diff_tool_core::{
-    diff_lines, parent_dir, switcher_entries, Entry, FileBrowser, NavigateTarget, SideBySide,
+    diff_lines, existing_ancestor_dir, parent_dir, switcher_entries, Entry, FileBrowser,
+    NavigateTarget, SideBySide,
 };
 use ratatui::backend::CrosstermBackend;
 use ratatui::text::Span;
@@ -58,13 +59,21 @@ impl Panel {
         self.highlighted = None;
     }
 
-    /// Open a CLI path: directories become a file browser rooted there; anything
-    /// else is loaded as a file (missing paths surface as a read error).
+    /// Open a CLI path: existing files are loaded; existing directories open a
+    /// picker. Missing paths open a picker at the nearest existing parent
+    /// directory (or the current directory if none is found).
     pub fn open_path(&mut self, path: PathBuf) {
+        if path.is_file() {
+            self.load(path);
+            return;
+        }
         if path.is_dir() {
             self.open_browser(Some(&path));
-        } else {
-            self.load(path);
+            return;
+        }
+        match existing_ancestor_dir(&path) {
+            Some(dir) => self.open_browser(Some(&dir)),
+            None => self.open_browser(None),
         }
     }
 
@@ -135,17 +144,11 @@ impl App {
         let mut panels = [Panel::new(), Panel::new()];
 
         match (left, right) {
-            // Single path: mirror onto both panels (file → both load it;
-            // directory → both open a picker rooted there).
+            // Single path: mirror onto both panels.
             (Some(path), None) => {
                 let path = PathBuf::from(path);
-                if path.is_dir() {
-                    panels[LEFT].open_browser(Some(&path));
-                    panels[RIGHT].open_browser(Some(&path));
-                } else {
-                    panels[LEFT].load(path.clone());
-                    panels[RIGHT].load(path);
-                }
+                panels[LEFT].open_path(path.clone());
+                panels[RIGHT].open_path(path);
             }
             (None, None) => {
                 panels[LEFT].open_browser(None);
@@ -945,6 +948,56 @@ mod tests {
         assert_eq!(
             app.panels[RIGHT].browser.as_ref().map(|b| b.cwd.as_path()),
             Some(right.as_path())
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn missing_single_path_opens_nearest_existing_parent_on_both() {
+        let dir = temp_dir("missing-single");
+        let missing = dir.join("nope").join("file.txt");
+
+        let app = App::new(Some(missing.to_str().unwrap()), None, ColorScheme::Dark).unwrap();
+
+        assert!(!app.panels[LEFT].has_file());
+        assert!(!app.panels[RIGHT].has_file());
+        assert_eq!(
+            app.panels[LEFT].browser.as_ref().map(|b| b.cwd.as_path()),
+            Some(dir.as_path())
+        );
+        assert_eq!(
+            app.panels[RIGHT].browser.as_ref().map(|b| b.cwd.as_path()),
+            Some(dir.as_path())
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn missing_two_paths_open_nearest_existing_parents() {
+        let root = temp_dir("missing-two");
+        let left_root = root.join("left");
+        let right_root = root.join("right");
+        fs::create_dir_all(&left_root).unwrap();
+        fs::create_dir_all(&right_root).unwrap();
+        let left_missing = left_root.join("a").join("missing.txt");
+        let right_missing = right_root.join("b").join("also-missing");
+
+        let app = App::new(
+            Some(left_missing.to_str().unwrap()),
+            Some(right_missing.to_str().unwrap()),
+            ColorScheme::Dark,
+        )
+        .unwrap();
+
+        assert_eq!(
+            app.panels[LEFT].browser.as_ref().map(|b| b.cwd.as_path()),
+            Some(left_root.as_path())
+        );
+        assert_eq!(
+            app.panels[RIGHT].browser.as_ref().map(|b| b.cwd.as_path()),
+            Some(right_root.as_path())
         );
 
         let _ = fs::remove_dir_all(root);
