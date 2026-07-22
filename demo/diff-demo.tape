@@ -25,6 +25,18 @@ Sleep 2.5s
 Down@200ms 8
 Sleep 1s
 
+# Toggle compact mode (changes + context only)
+Type "c"
+Sleep 2.5s
+
+# Scroll the compact view
+Down@200ms 6
+Sleep 1.2s
+
+# Toggle back to full view
+Type "c"
+Sleep 1.5s
+
 # Open file-switcher dropdown from the path title (o = keyboard; mouse click also works)
 Type "o"
 Sleep 2s

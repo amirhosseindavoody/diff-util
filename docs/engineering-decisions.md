@@ -49,6 +49,23 @@ pair them into `RowKind::Changed` on both sides.
   row N on the left always corresponds to row N on the right.
 - Separate scroll positions would desync the side-by-side view.
 
+## Compact mode (change hunks + context)
+
+**Decision**: Keep the full `SideBySide` in memory and derive a filtered view
+via `compact_diff` (default ±3 equal context lines) when the user presses `c`.
+Insert `RowKind::Gap` markers between non-contiguous hunks. Scroll clamps to
+the displayed view length.
+
+**Rationale**:
+
+- Full-file diffs bury sparse edits in long equal stretches; compact mode
+  matches the familiar “unified diff with context” mental model without a
+  separate layout.
+- Filtering in core keeps the TUI a thin consumer and is unit-testable.
+- Gap rows are display-only (ignored by stats) so status counts stay accurate
+  for the whole file.
+- Default remains full view so first open still shows complete files.
+
 ## Per-panel file browser and panel-local `q`
 
 **Decision**: Each panel can independently hold a file or a browser. `q` closes

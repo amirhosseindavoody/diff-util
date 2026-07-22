@@ -13,7 +13,8 @@ product with two crates:
   `../` and directory navigation), and a per-panel file browser (press `q` to
   close a panel's file; click entries to open). Each panel renders
   syntax-highlighted text via `syntect` (dark: base16-ocean; light: GitHub)
-  with a custom `.log` grammar for log files. Press `t` to toggle dark/light
+  with a custom `.log` grammar for log files. Press `c` to toggle compact mode
+  (change hunks plus a few lines of context). Press `t` to toggle dark/light
   theme at runtime, or pass `--theme light` at startup. When `--theme` is
   omitted, the app probes the terminal background and picks a matching palette
   (works in VS Code, iTerm2, Ghostty, etc.).

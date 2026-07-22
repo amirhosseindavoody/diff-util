@@ -20,6 +20,7 @@ working in a terminal or over SSH.
 |------------|-------|
 | Two-file side-by-side diff | Left = old/first file, right = new/second file |
 | Line-level alignment | Equal, added, removed, changed, and blank padding rows |
+| Compact mode | Toggle with `c`: show only change hunks plus a few equal context lines (gap markers between distant hunks) |
 | Syntax highlighting | syntect defaults + custom log grammar; dark (base16-ocean) or light (GitHub) theme |
 | Interactive file picking | 0–2 CLI paths (file or directory); a single path is mirrored to both panels; missing paths fall back to the nearest existing parent picker; path-title dropdown switches sibling files |
 | Status summary | Counts of `+` added, `-` removed, `~` changed, `=` equal lines |
@@ -48,6 +49,8 @@ These are intentional boundaries, not missing features waiting for a quick patch
 - **Changed hunks**: When a modified region has unequal numbers of deleted and
   inserted lines, pairing produces extra blank rows on the shorter side — still
   row-aligned, but not a minimal edit script.
+- **Compact mode with identical files**: When there are no differences, compact
+  view is empty (status stats still reflect the full file).
 - **Syntax detection**: By file extension and syntect heuristics; unknown
   extensions render as plain text without highlighting.
 - **File browser**: Lists one directory at a time; paste or type a path to jump

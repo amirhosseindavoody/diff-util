@@ -31,9 +31,10 @@ syntax highlighting.
 **Output**: `SideBySide { left: DiffSide, right: DiffSide }` where `left.len()
 == right.len()` always. Each side is a vector of `DiffRow` with:
 
-- `kind`: `Equal`, `Changed`, `Added`, `Removed`, or `Blank`
+- `kind`: `Equal`, `Changed`, `Added`, `Removed`, `Blank`, or `Gap` (compact
+  mode separators only)
 - `text`: line content (newlines stripped)
-- `line_no`: 1-based source line number, or `None` for blank padding rows
+- `line_no`: 1-based source line number, or `None` for blank/gap rows
 
 **Pipeline**:
 
@@ -41,6 +42,9 @@ syntax highlighting.
 2. Deletes pad the right side with `Blank`; inserts pad the left with `Blank`.
 3. `realign_changes` collapses adjacent delete+insert runs into paired `Changed`
    rows so edits line up visually instead of appearing staggered.
+4. Optional `compact_diff(diff, context)` filters to change regions ± context
+   equal lines, inserting `Gap` rows between non-contiguous hunks (used when
+   the TUI toggles compact mode with `c`).
 
 There is **no intra-line (word-level) diff**; each row is one source line.
 
@@ -83,6 +87,7 @@ the full path.
 | `focused` | Which panel receives keyboard input |
 | `scroll` | **Single shared** vertical offset for the diff view |
 | `diff: SideBySide` | Recomputed when either panel's file changes |
+| `compact: bool` | When true, panels show change hunks plus context via a cached compact view |
 | `highlight: HighlightEngine` | Shared syntect state |
 | `theme: UiTheme` | Dark or light UI palette and syntect theme name |
 | `path_input: Option<String>` | Path typed or pasted in the focused panel's browser |
@@ -97,7 +102,8 @@ cached `highlighted` spans (per source line).
 2. Poll events (250 ms timeout); redraw on every iteration.
 3. **Keyboard**: file-switcher keys when the dropdown is open; otherwise global
    keys (`?`, `Tab`, `s`, `t`, `q`, `Q`, Ctrl-C), then path input (when active),
-   browser, or diff handlers (`o` opens the sibling-file dropdown in diff mode).
+   browser, or diff handlers (`o` opens the sibling-file dropdown; `c` toggles
+   compact mode in diff view).
 4. **Paste**: terminal paste events navigate to a file or directory in the focused
    panel's browser (or fill the path input when editing with `/`).
 5. **Mouse**: click focuses left/right half by column; click on a path title opens
@@ -122,7 +128,9 @@ Layout:
 
 **Diff mode** (both panels have readable files):
 
-- Both sides render from the same `app.scroll` offset.
+- Both sides render from the same `app.scroll` offset over either the full
+  `diff` or a compact view (change hunks ± context, with gap markers between
+  distant regions when `compact` is on).
 - Line numbers from `DiffRow.line_no`.
 - Syntax spans come from pre-highlighted source lines indexed by `line_no`;
   diff row backgrounds (green/red/yellow) are patched on top.
@@ -178,6 +186,7 @@ App::recompute_diff        diff_lines(left, right) if both sides ready
         │
         ▼
 ui::draw                   scroll-aligned side-by-side view
+                           (full or compact via displayed_diff)
 ```
 
 ## CLI
