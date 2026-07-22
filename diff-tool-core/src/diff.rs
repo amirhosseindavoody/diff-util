@@ -7,6 +7,9 @@
 
 use similar::{ChangeTag, TextDiff};
 
+/// Default number of equal lines kept around each change hunk in compact mode.
+pub const DEFAULT_CONTEXT_LINES: usize = 3;
+
 /// Classification of a single row within one side of the diff.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
@@ -15,6 +18,8 @@ pub enum RowKind {
     Added,
     Removed,
     Blank,
+    /// Visual marker between non-contiguous hunks in compact mode.
+    Gap,
 }
 
 /// A single rendered row on one side of the diff.
@@ -235,6 +240,70 @@ impl SideBySide {
     }
 }
 
+fn row_is_change(left: &DiffRow, right: &DiffRow) -> bool {
+    !matches!((left.kind, right.kind), (RowKind::Equal, RowKind::Equal))
+}
+
+fn gap_row() -> DiffRow {
+    DiffRow {
+        kind: RowKind::Gap,
+        text: "·····".to_string(),
+        line_no: None,
+    }
+}
+
+/// Build a compact side-by-side view that keeps only change hunks plus
+/// `context` equal lines around each hunk, inserting [`RowKind::Gap`] rows
+/// between non-contiguous regions.
+///
+/// Identical files (no changes) yield an empty result.
+pub fn compact_diff(diff: &SideBySide, context: usize) -> SideBySide {
+    let n = diff.len();
+    if n == 0 {
+        return SideBySide::default();
+    }
+
+    let mut include = vec![false; n];
+    for i in 0..n {
+        if row_is_change(&diff.left.rows[i], &diff.right.rows[i]) {
+            let start = i.saturating_sub(context);
+            let end = (i + context + 1).min(n);
+            for flag in &mut include[start..end] {
+                *flag = true;
+            }
+        }
+    }
+
+    if !include.iter().any(|&b| b) {
+        return SideBySide::default();
+    }
+
+    let mut left = DiffSide::default();
+    let mut right = DiffSide::default();
+    let mut i = 0;
+    let mut first_segment = true;
+    while i < n {
+        if !include[i] {
+            i += 1;
+            continue;
+        }
+        let mut j = i + 1;
+        while j < n && include[j] {
+            j += 1;
+        }
+        if !first_segment {
+            left.rows.push(gap_row());
+            right.rows.push(gap_row());
+        }
+        first_segment = false;
+        left.rows.extend(diff.left.rows[i..j].iter().cloned());
+        right.rows.extend(diff.right.rows[i..j].iter().cloned());
+        i = j;
+    }
+
+    SideBySide { left, right }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,5 +344,77 @@ mod tests {
     fn both_sides_have_equal_length() {
         let d = diff_lines("a\nb\nc\nd\n", "a\nX\nc\nY\ne\n");
         assert_eq!(d.left.len(), d.right.len());
+    }
+
+    #[test]
+    fn compact_keeps_context_around_changes() {
+        // 10 equal lines, one change in the middle, then more equal lines.
+        let old = (0..20).map(|i| format!("line{i}\n")).collect::<String>();
+        let mut new_lines: Vec<String> = (0..20).map(|i| format!("line{i}\n")).collect();
+        new_lines[10] = "CHANGED\n".to_string();
+        let new = new_lines.concat();
+
+        let full = diff_lines(&old, &new);
+        assert_eq!(full.len(), 20);
+
+        let compact = compact_diff(&full, 2);
+        // context 2 around index 10 → rows 8..=12 (5 rows), no gaps.
+        assert_eq!(compact.len(), 5);
+        assert_eq!(compact.left.rows[0].text, "line8");
+        assert_eq!(compact.left.rows[2].kind, RowKind::Changed);
+        assert_eq!(compact.right.rows[2].text, "CHANGED");
+        assert_eq!(compact.left.rows[4].text, "line12");
+        assert!(compact.left.rows.iter().all(|r| r.kind != RowKind::Gap));
+    }
+
+    #[test]
+    fn compact_inserts_gap_between_distant_hunks() {
+        let old = (0..30).map(|i| format!("line{i}\n")).collect::<String>();
+        let mut new_lines: Vec<String> = (0..30).map(|i| format!("line{i}\n")).collect();
+        new_lines[5] = "A\n".to_string();
+        new_lines[25] = "B\n".to_string();
+        let new = new_lines.concat();
+
+        let full = diff_lines(&old, &new);
+        let compact = compact_diff(&full, 1);
+        let gaps = compact
+            .left
+            .rows
+            .iter()
+            .filter(|r| r.kind == RowKind::Gap)
+            .count();
+        assert_eq!(gaps, 1);
+        assert!(compact.len() < full.len());
+        assert_eq!(compact.left.len(), compact.right.len());
+    }
+
+    #[test]
+    fn compact_identical_files_are_empty() {
+        let d = diff_lines("a\nb\nc\n", "a\nb\nc\n");
+        let compact = compact_diff(&d, 3);
+        assert!(compact.is_empty());
+    }
+
+    #[test]
+    fn compact_merges_overlapping_context_windows() {
+        let old = (0..15).map(|i| format!("line{i}\n")).collect::<String>();
+        let mut new_lines: Vec<String> = (0..15).map(|i| format!("line{i}\n")).collect();
+        new_lines[5] = "A\n".to_string();
+        new_lines[8] = "B\n".to_string();
+        let new = new_lines.concat();
+
+        let full = diff_lines(&old, &new);
+        let compact = compact_diff(&full, 2);
+        // Hunks at 5 and 8 with context 2 overlap → one contiguous segment, no gap.
+        assert_eq!(
+            compact
+                .left
+                .rows
+                .iter()
+                .filter(|r| r.kind == RowKind::Gap)
+                .count(),
+            0
+        );
+        assert!(compact.len() < full.len());
     }
 }

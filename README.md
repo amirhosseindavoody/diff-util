@@ -34,7 +34,7 @@ diff-tool file_a.txt file_b.txt
 
 | Surface | What it does |
 |---------|--------------|
-| **Two-panel diff** | Left panel = file A, right panel = file B, with added / removed / changed lines highlighted and aligned row-for-row. |
+| **Two-panel diff** | Left panel = file A, right panel = file B, with added / removed / changed lines highlighted and aligned row-for-row. Press `c` to toggle compact mode (change hunks plus a few lines of context). |
 | **Syntax highlighting** | Per-panel syntax highlighting via `syntect` (dark: base16-ocean; light: GitHub). Common languages work out of the box — Python, Rust, JS, JSON, YAML, TOML, Markdown, C, and more — plus a custom `.log` syntax that colors timestamps and `ERROR`/`WARN`/`INFO`/`DEBUG` levels. Diff backgrounds (added/removed/changed) are preserved under the syntax colors. |
 | **Dark / light theme** | Auto-detects your terminal background (VS Code, iTerm2, Ghostty, etc.) and picks a matching palette; override with `--theme dark|light` or press `t` to toggle at runtime. |
 | **Mouse selection** | Click either panel to focus it. Scroll wheel scrolls the diff or browser. Click a panel's file-path title to open a file-switcher dropdown. In the file browser, click an entry to open a file or enter a directory. |
@@ -104,6 +104,7 @@ pixi run diff -- --theme light old.txt new.txt
 - `j` / `↓`  scroll down        `k` / `↑`  scroll up
 - `J` / `PgDn`  scroll 10        `K` / `PgUp`  scroll -10
 - `g` / `Home`  top              `G` / `End`  bottom
+- `c`  toggle compact mode (changes + context only)
 - `o`  open file-switcher dropdown for the focused panel
 - `q`  close the focused panel's file → file browser
 - `Tab`  switch focused panel

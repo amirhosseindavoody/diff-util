@@ -318,10 +318,8 @@ fn draw_file_switcher(f: &mut Frame, app: &mut App, body: Rect, theme: UiTheme) 
 }
 
 fn draw_file_content(f: &mut Frame, app: &mut App, idx: usize, area: Rect, theme: UiTheme) {
-    let panel = &app.panels[idx];
-
     // Error reading the file: show the error inline.
-    if let Some(err) = panel.error() {
+    if let Some(err) = app.panels[idx].error() {
         let line = Line::from(vec![
             Span::styled(
                 "error: ",
@@ -338,18 +336,26 @@ fn draw_file_content(f: &mut Frame, app: &mut App, idx: usize, area: Rect, theme
 
     let both = app.panels[LEFT].text().is_some() && app.panels[RIGHT].text().is_some();
     if both {
-        let side = if idx == LEFT { &app.diff.left } else { &app.diff.right };
+        let (view, highlighted) = app.diff_render_inputs(idx);
+        let side = if idx == LEFT { &view.left } else { &view.right };
         render_diff_side(
             f,
-            &app.diff,
+            view,
             side,
-            panel.highlighted.as_ref(),
+            highlighted,
             app.scroll,
             area,
             theme,
         );
-    } else if let Some(text) = panel.text() {
-        render_plain(f, text, panel.highlighted.as_ref(), app.scroll, area, theme);
+    } else if let Some(text) = app.panels[idx].text() {
+        render_plain(
+            f,
+            text,
+            app.panels[idx].highlighted.as_ref(),
+            app.scroll,
+            area,
+            theme,
+        );
     } else {
         // No file and no browser (shouldn't normally happen): show hint.
         let hint = Paragraph::new("press q is a no-op here — open a file from the other panel's browser")
@@ -367,10 +373,25 @@ fn render_diff_side(
     area: Rect,
     theme: UiTheme,
 ) {
-    let line_no_width = count_digits(diff.len()) as u16;
+    let max_line_no = side
+        .rows
+        .iter()
+        .filter_map(|r| r.line_no)
+        .max()
+        .unwrap_or(diff.len());
+    let line_no_width = count_digits(max_line_no.max(1)) as u16;
 
     let mut lines: Vec<Line> = Vec::new();
     for row in side.rows.iter().skip(scroll) {
+        if row.kind == RowKind::Gap {
+            let gap = Span::styled(
+                format!("{} ·····", " ".repeat(line_no_width as usize)),
+                Style::default().fg(theme.hint),
+            );
+            lines.push(Line::from(gap));
+            continue;
+        }
+
         let no = row
             .line_no
             .map(|n| format!("{:>width$}", n, width = line_no_width as usize))
@@ -537,6 +558,7 @@ fn diff_text_style(kind: RowKind, theme: UiTheme) -> Style {
         None => match kind {
             RowKind::Equal => Style::default().fg(theme.diff_equal),
             RowKind::Blank => Style::default().fg(theme.diff_blank),
+            RowKind::Gap => Style::default().fg(theme.hint),
             _ => Style::default(),
         },
     }
@@ -594,10 +616,16 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect, theme: UiTheme) {
             Style::default().fg(theme.hint),
         ));
     } else {
-        spans.push(Span::styled(
-            "click path: switch file  q: close file  Tab: switch panel  s: swap  t: theme  ?: help  Q/Ctrl-C: quit",
-            Style::default().fg(theme.hint),
-        ));
+        let hints = if both {
+            if app.compact {
+                "c: full view  q: close file  Tab: switch panel  s: swap  t: theme  ?: help  Q/Ctrl-C: quit"
+            } else {
+                "c: compact  q: close file  Tab: switch panel  s: swap  t: theme  ?: help  Q/Ctrl-C: quit"
+            }
+        } else {
+            "click path: switch file  q: close file  Tab: switch panel  s: swap  t: theme  ?: help  Q/Ctrl-C: quit"
+        };
+        spans.push(Span::styled(hints, Style::default().fg(theme.hint)));
     }
 
     if let Some(msg) = &app.message {
@@ -625,6 +653,7 @@ fn draw_help(f: &mut Frame, area: Rect, theme: UiTheme) {
         "  j / ↓            scroll down      k / ↑            scroll up",
         "  J / PgDn         scroll 10         K / PgUp         scroll -10",
         "  g / Home         top               G / End          bottom",
+        "  c                toggle compact mode (changes + context only)",
         "  q                close focused panel's file → file browser",
         "  Tab              switch focused panel",
         "  s                swap left and right panels",

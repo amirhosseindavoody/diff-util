@@ -8,8 +8,8 @@ use crossterm::event::{
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::execute;
 use diff_tool_core::{
-    diff_lines, existing_ancestor_dir, parent_dir, switcher_entries, Entry, FileBrowser,
-    NavigateTarget, SideBySide,
+    compact_diff, diff_lines, existing_ancestor_dir, parent_dir, switcher_entries, Entry,
+    FileBrowser, NavigateTarget, SideBySide, DEFAULT_CONTEXT_LINES,
 };
 use ratatui::backend::CrosstermBackend;
 use ratatui::text::Span;
@@ -126,6 +126,10 @@ pub struct App {
     pub focused: usize,
     pub scroll: usize,
     pub diff: SideBySide,
+    /// When true, the diff view shows only change hunks plus a few context lines.
+    pub compact: bool,
+    /// Cached compact view of `diff` (valid when `compact` is true).
+    compact_view: SideBySide,
     pub show_help: bool,
     pub should_quit: bool,
     pub message: Option<String>,
@@ -173,6 +177,8 @@ impl App {
             focused: LEFT,
             scroll: 0,
             diff: SideBySide::default(),
+            compact: false,
+            compact_view: SideBySide::default(),
             show_help: false,
             should_quit: false,
             message: Some(format!("theme: {}", theme.scheme.label())),
@@ -215,11 +221,55 @@ impl App {
             (Some(l), Some(r)) => self.diff = diff_lines(l, r),
             _ => self.diff = SideBySide::default(),
         }
-        // Clamp scroll to the new diff length.
-        let max = self.diff.len().saturating_sub(1);
+        self.refresh_compact_view();
+        self.clamp_scroll();
+    }
+
+    /// Rows currently shown in the diff panels (full or compact).
+    pub fn displayed_diff(&self) -> &SideBySide {
+        if self.compact {
+            &self.compact_view
+        } else {
+            &self.diff
+        }
+    }
+
+    /// Diff rows plus this panel's highlight cache (single borrow for the UI).
+    pub fn diff_render_inputs(
+        &self,
+        idx: usize,
+    ) -> (&SideBySide, Option<&Vec<Vec<Span<'static>>>>) {
+        (self.displayed_diff(), self.panels[idx].highlighted.as_ref())
+    }
+
+    fn refresh_compact_view(&mut self) {
+        if self.compact {
+            self.compact_view = compact_diff(&self.diff, DEFAULT_CONTEXT_LINES);
+        }
+    }
+
+    fn clamp_scroll(&mut self) {
+        let len = self.displayed_diff().len();
+        if len == 0 {
+            self.scroll = 0;
+            return;
+        }
+        let max = len - 1;
         if self.scroll > max {
             self.scroll = max;
         }
+    }
+
+    /// Toggle compact mode (change hunks + context only) vs full file view.
+    pub fn toggle_compact(&mut self) {
+        self.compact = !self.compact;
+        self.refresh_compact_view();
+        self.clamp_scroll();
+        self.set_message(if self.compact {
+            format!("compact mode: on (±{DEFAULT_CONTEXT_LINES} context)")
+        } else {
+            "compact mode: off".to_string()
+        });
     }
 
     pub fn focus(&mut self, idx: usize) {
@@ -250,7 +300,7 @@ impl App {
 
     /// Move the diff scroll by `delta` rows (only meaningful in diff view).
     pub fn scroll_diff(&mut self, delta: isize) {
-        let len = self.diff.len();
+        let len = self.displayed_diff().len();
         if len == 0 {
             self.scroll = 0;
             return;
@@ -687,13 +737,14 @@ fn handle_diff_key(app: &mut App, code: KeyCode) {
         PageUp | Char('K') => app.scroll_diff(-10),
         Home | Char('g') => app.scroll = 0,
         End | Char('G') => {
-            let max = app.diff.len().saturating_sub(1);
+            let max = app.displayed_diff().len().saturating_sub(1);
             app.scroll = max;
         }
         Char('o') => {
             let focused = app.focused;
             app.open_file_switcher(focused);
         }
+        Char('c') => app.toggle_compact(),
         _ => {}
     }
 }
